@@ -177,11 +177,12 @@ function hash2(x: number, y: number): number {
 }
 
 function grain(amount: number): void {
-  const span = amount * 2 + 1;
   for (let y = 0; y < H; y++) {
     const cellY = y >> 2;
+    const a = y >= 780 && y <= 1010 ? Math.round(amount / 3) : amount;
+    const span = a * 2 + 1;
     for (let x = 0; x < W; x++) {
-      const n = (hash2(x >> 2, cellY) % span) - amount;
+      const n = (hash2(x >> 2, cellY) % span) - a;
       const i = (y * W + x) * 4;
       px[i] = clamp(px[i] + n, 0, 255);
       px[i + 1] = clamp(px[i + 1] + n, 0, 255);
@@ -236,33 +237,38 @@ const GLYPHS: Record<string, Glyph> = {
   " ": { width: 40, strokes: [] },
 };
 
-const TRACKING_EM = 24;
+const CONDENSE = 0.93;
 
-function wordWidthEm(word: string): number {
+function wordWidthEm(word: string, trackingEm: number): number {
   let total = 0;
   for (let i = 0; i < word.length; i++) {
-    total += GLYPHS[word[i]].width;
-    if (i < word.length - 1) total += TRACKING_EM;
+    total += GLYPHS[word[i]].width * CONDENSE;
+    if (i < word.length - 1) total += trackingEm;
   }
   return total;
 }
 
-function drawWord(word: string, baseline: number, capHeight: number, strokeEm: number, c: RGB): void {
+function wordInkWidth(word: string, trackingEm: number, capHeight: number, strokeEm: number): number {
+  const scale = capHeight / 100;
+  return wordWidthEm(word, trackingEm) * scale + strokeEm * scale;
+}
+
+function drawWord(word: string, baseline: number, capHeight: number, strokeEm: number, trackingEm: number, c: RGB): void {
   const scale = capHeight / 100;
   const top = baseline - capHeight;
-  let pen = 512 - (wordWidthEm(word) * scale) / 2;
+  let pen = 512 - (wordWidthEm(word, trackingEm) * scale) / 2;
   for (const ch of word) {
     const g = GLYPHS[ch];
     for (const line of g.strokes) {
       for (let i = 0; i + 1 < line.length; i++) {
         strokeLine(
-          pen + line[i][0] * scale, top + line[i][1] * scale,
-          pen + line[i + 1][0] * scale, top + line[i + 1][1] * scale,
+          pen + line[i][0] * CONDENSE * scale, top + line[i][1] * scale,
+          pen + line[i + 1][0] * CONDENSE * scale, top + line[i + 1][1] * scale,
           strokeEm * scale, c,
         );
       }
     }
-    pen += (g.width + TRACKING_EM) * scale;
+    pen += (g.width * CONDENSE + trackingEm) * scale;
   }
 }
 
@@ -277,31 +283,81 @@ function drawSky(): void {
     { y: 0, c: hex("#071726") },
     { y: 380, c: hex("#123C4A") },
     { y: 520, c: hex("#2E5F63") },
+    { y: 616, c: hex("#EF9D55") },
     { y: 640, c: hex("#E98B4A") },
     { y: 660, c: hex("#F2B06A") },
   ]);
 }
 
+function drawStars(): void {
+  const c = hex("#F4EFE4");
+  const placed: Point[] = [];
+  for (let i = 0; placed.length < 14 && i < 200; i++) {
+    const x = 56 + (hash2(i, 101) % 912);
+    const y = 36 + (hash2(i, 202) % 186);
+    let clear = true;
+    for (const p of placed) {
+      if ((p[0] - x) ** 2 + (p[1] - y) ** 2 < 44 * 44) {
+        clear = false;
+        break;
+      }
+    }
+    if (!clear) continue;
+    placed.push([x, y]);
+    const r = 1 + (hash2(i, 303) % 2);
+    const op = 0.5 + 0.35 * ((hash2(i, 404) % 100) / 100);
+    disc(x, y, r, c, 0.7, op);
+  }
+}
+
+function drawBirds(): void {
+  const c = hex("#0A1B26");
+  const spots: Point[] = [[330, 300], [372, 276], [250, 336], [410, 250]];
+  for (const [bx, by] of spots) {
+    strokeLine(bx - 7, by + 3, bx, by, 1.6, c);
+    strokeLine(bx, by, bx + 7, by + 3, 1.6, c);
+  }
+}
+
 function drawSun(): void {
-  disc(512, 604, 226, hex("#FFC46B"), 0, 0.22);
+  disc(512, 604, 168, hex("#FFB765"), 22, 0.14);
   disc(512, 604, 126, hex("#FFC46B"), 3);
 }
 
 function drawSea(): void {
   fillGradientV(0, 664, W, H, [
     { y: 664, c: hex("#16757F") },
-    { y: 1024, c: hex("#041D28") },
+    { y: 860, c: hex("#0A3E4C") },
+    { y: 1024, c: hex("#031722") },
   ]);
+}
+
+function drawRipples(): void {
+  const c = hex("#9FC9C2");
+  let y = 680;
+  while (y < 1012) {
+    const t = (y - 680) / 332;
+    const op = 0.12 - 0.06 * t;
+    const thick = t < 0.45 ? 2 : 1;
+    for (let dy = 0; dy < thick; dy++) {
+      for (let x = 0; x < W; x++) {
+        if (hash2(x >> 4, y + dy) % 19 === 0) continue;
+        const v = 0.65 + 0.35 * ((hash2(x >> 3, y + dy) % 100) / 100);
+        blend(x, y + dy, c, op * v);
+      }
+    }
+    y += Math.round(6 + 20 * t);
+  }
 }
 
 function drawSunPath(): void {
   const c = hex("#FFD79A");
-  for (let i = 0; i < 44; i++) {
-    const t = i / 43;
-    const y = Math.round(676 + t * 324);
-    const hgt = 2 + (hash2(i, 91) % 5);
-    const w = Math.round(150 - 124 * t);
-    const op = 0.42 - 0.28 * t;
+  for (let i = 0; i < 16; i++) {
+    const t = i / 15;
+    const y = Math.round(676 + t * 32);
+    const hgt = 2 + (hash2(i, 91) % 3);
+    const w = Math.round(150 - 50 * t);
+    const op = 0.42 - 0.1 * t;
     const x0 = 512 - w / 2;
     for (let dy = 0; dy < hgt; dy++) {
       for (let x = Math.floor(x0); x < Math.ceil(x0 + w); x++) {
@@ -311,6 +367,13 @@ function drawSunPath(): void {
         blend(x, y + dy, c, op * f);
       }
     }
+  }
+}
+
+function scrimV(y0: number, y1: number, c: RGB, a0: number, a1: number): void {
+  for (let y = y0; y < y1; y++) {
+    const a = a0 + (a1 - a0) * ((y - y0) / (y1 - y0));
+    for (let x = 0; x < W; x++) blend(x, y, c, a);
   }
 }
 
@@ -330,22 +393,36 @@ function drawStacks(): void {
   }
 }
 
+function drawBoat(): void {
+  const dark = hex("#08161F");
+  strokeLine(700, 762, 700, 726, 2, dark);
+  polygon([[700, 728], [700, 758], [677, 754]], hex("#F3E3CB"));
+  polygon([[677, 762], [723, 762], [715, 772], [685, 772]], dark);
+}
+
 function drawForeground(): void {
-  polygon([[0, 1024], [0, 742], [96, 806], [208, 908], [330, 1024]], hex("#04101A"));
-  polygon([[1024, 1024], [1024, 872], [876, 1024]], hex("#04101A"));
+  const dark = hex("#04101A");
+  const cliff: Point[] = [[0, 1024], [0, 742], [66, 780], [112, 780], [112, 812], [168, 812], [168, 846], [224, 880], [286, 946], [330, 1024]];
+  polygon(cliff, dark);
+  polygon([[1024, 1024], [1024, 872], [876, 1024]], dark);
+  for (let i = 1; i + 1 < cliff.length; i++) {
+    strokeLine(cliff[i][0], cliff[i][1], cliff[i + 1][0], cliff[i + 1][1], 2, RIM);
+  }
+  strokeLine(1024, 872, 876, 1024, 2, RIM);
 }
 
 function drawFrame(): void {
-  fillRect(34, 34, 990, 36, CREAM, 0.5);
-  fillRect(34, 988, 990, 990, CREAM, 0.5);
-  fillRect(34, 36, 36, 988, CREAM, 0.5);
-  fillRect(988, 36, 990, 988, CREAM, 0.5);
+  fillRect(46, 46, 978, 48, CREAM, 0.45);
+  fillRect(46, 976, 978, 978, CREAM, 0.45);
+  fillRect(46, 48, 48, 976, CREAM, 0.45);
+  fillRect(976, 48, 978, 976, CREAM, 0.45);
 }
 
 function drawType(): void {
-  drawWord("VELCARA", 878, 154, 7, CREAM);
-  fillRect(368, 905, 656, 908, CREAM);
-  drawWord("ISLES", 968, 54, 9, CREAM);
+  drawWord("VELCARA", 878, 154, 7, 24, CREAM);
+  const inkW = wordInkWidth("VELCARA", 24, 154, 7);
+  fillRect(512 - inkW / 2, 892, 512 + inkW / 2, 896, CREAM);
+  drawWord("ISLES", 968, 62, 9, 34, CREAM);
 }
 
 // -------------------------------------------------------------- PNG encoder
@@ -400,10 +477,15 @@ function encodePNG(): Buffer {
 
 function main(): void {
   drawSky();
+  drawStars();
+  drawBirds();
   drawSun();
   drawSea();
+  drawRipples();
   drawSunPath();
   drawStacks();
+  drawBoat();
+  scrimV(680, H, hex("#04121C"), 0, 0.7);
   drawForeground();
   grain(6);
   vignette(0.18);
