@@ -393,22 +393,24 @@ function drawStacks(): void {
   }
 }
 
-function drawBoat(): void {
+function drawBoats(): void {
   const dark = hex("#08161F");
-  strokeLine(700, 762, 700, 726, 2, dark);
-  polygon([[700, 728], [700, 758], [677, 754]], hex("#F3E3CB"));
-  polygon([[677, 762], [723, 762], [715, 772], [685, 772]], dark);
+  const sail = hex("#F3E3CB");
+  strokeLine(806, 688, 806, 648, 2, dark);
+  polygon([[806, 650], [806, 684], [779, 680]], sail);
+  polygon([[777, 688], [835, 688], [827, 697], [785, 697]], dark);
+  strokeLine(256, 694, 256, 672, 2, dark);
+  polygon([[256, 673], [256, 692], [240, 689]], sail);
+  polygon([[239, 694], [273, 694], [268, 701], [244, 701]], dark);
 }
 
 function drawForeground(): void {
   const dark = hex("#04101A");
   const cliff: Point[] = [[0, 1024], [0, 742], [66, 780], [112, 780], [112, 812], [168, 812], [168, 846], [224, 880], [286, 946], [330, 1024]];
   polygon(cliff, dark);
-  polygon([[1024, 1024], [1024, 872], [876, 1024]], dark);
   for (let i = 1; i + 1 < cliff.length; i++) {
     strokeLine(cliff[i][0], cliff[i][1], cliff[i + 1][0], cliff[i + 1][1], 2, RIM);
   }
-  strokeLine(1024, 872, 876, 1024, 2, RIM);
 }
 
 function drawFrame(): void {
@@ -419,10 +421,10 @@ function drawFrame(): void {
 }
 
 function drawType(): void {
-  drawWord("VELCARA", 878, 154, 7, 24, CREAM);
-  const inkW = wordInkWidth("VELCARA", 24, 154, 7);
-  fillRect(512 - inkW / 2, 892, 512 + inkW / 2, 896, CREAM);
-  drawWord("ISLES", 968, 62, 9, 34, CREAM);
+  drawWord("VELCARA", 864, 154, 9, 20, CREAM);
+  const inkW = wordInkWidth("VELCARA", 20, 154, 9);
+  fillRect(512 - inkW / 2, 878, 512 + inkW / 2, 882, CREAM);
+  drawWord("ISLES", 954, 62, 11, 20, CREAM);
 }
 
 // -------------------------------------------------------------- PNG encoder
@@ -484,7 +486,7 @@ function main(): void {
   drawRipples();
   drawSunPath();
   drawStacks();
-  drawBoat();
+  drawBoats();
   scrimV(680, H, hex("#04121C"), 0, 0.7);
   drawForeground();
   grain(6);
